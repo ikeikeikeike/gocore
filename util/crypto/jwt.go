@@ -9,14 +9,35 @@ import (
 )
 
 var (
-	jwtSecret  = "ikeikeGRP47;pike"  // #nosec
+	// jwtSecret
+	jwtSecret = "ikeikeGRP47;pike" // #nosec
+	// jwtExpires
 	jwtExpires = time.Hour * 24 * 90 // 3 months
-
 	// SessionKey is used as session key
-	SessionKey = "_go_utils_key"
+	SessionKey = "_gocore_key"
 	// MaxAge is session max age
 	MaxAge = time.Hour * 24 * 75 // 2.5 months
 )
+
+// SetExpires set value
+func SetExpires(expires time.Duration) {
+	jwtExpires = expires
+}
+
+// SetSecret set value
+func SetSecret(secret string) {
+	jwtSecret = secret
+}
+
+// SetSessionKey set value
+func SetSessionKey(key string) {
+	SessionKey = key
+}
+
+// SetMaxAge set value
+func SetMaxAge(age time.Duration) {
+	MaxAge = age
+}
 
 // JwtToken returns jwt token with expires
 func JwtToken(data interface{}) (string, error) {
