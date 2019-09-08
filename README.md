@@ -79,7 +79,7 @@ $ make gomodule
 
 - [File,S3,GCS](/data/storage)
 - [Redis](/data/rdb)
-- [Elasticsearch](/data/es)
+- [Elasticsearch](/data/search)
 - [BigQuery](/data/bq)
 
 
@@ -177,14 +177,19 @@ import (
   "github.com/kelseyhightower/envconfig"
   "github.com/volatiletech/sqlboiler/boil"
 
+  "github.com/ikeikeikeike/gocore/data/search"
+  "github.com/ikeikeikeike/gocore/data/storage"
   "github.com/ikeikeikeike/gocore/util/logger"
   "github.com/ikeikeikeike/gocore/util"
 )
 
 func initInject(di *dig.Container) {
   var deps = []interface{}{
-    initEnv,
     initDB,
+    initDLM,
+    initES,
+    initEnv,
+    initRDB,
   }
 
   for _, dep := range deps {
@@ -192,6 +197,10 @@ func initInject(di *dig.Container) {
       logger.Panicf("failed to process root injection: %s", err)
     }
   }
+
+  // Inject Core
+  search.Inject(di)
+  storage.Inject(di)
 }
 
 func initEnv() Environment {
@@ -207,17 +216,54 @@ func initEnv() Environment {
   return env
 }
 
-func initDB(env Environment) *sql.DB {
+func initCoreEnv(env Environment) util.Environment {
+  return env
+}
+
+
+func initDB(env util.Environment) *sql.DB {
   boil.DebugMode = !env.IsProd()
 
   // apidb
-  db, err := util.DBConn(env.(util.Environment))
+  db, err := util.DBConn(env)
   if err != nil {
     logger.Panicf("failed to get DBConn: %s", err)
   }
 
   return db
 }
+
+// elasticsearch
+func initES(env util.Environment) *elastic.Client {
+  es, err := util.ESConn(env) // defer es.Close()
+  if err != nil {
+    logger.Panicf("failed to get ESConn: %s", err)
+  }
+  return es
+}
+
+
+// redis
+func initRDB(env util.Environment) *pool.Pool {
+  db, err := util.RDBConn(env)
+  if err != nil {
+    logger.Panicf("failed to get RDBConn: %s", err)
+  }
+
+  return db
+}
+
+// distributed lock manager
+func initDLM(env util.Environment) *dlm.DLM {
+  // Redis
+  db, err := util.DLMConn(env)
+  if err != nil {
+    logger.Panicf("failed to get DLMConn: %s", err)
+  }
+
+  return db
+}
+
 ```
 
 Invoke Components.
@@ -234,9 +280,15 @@ import (
   "syscall"
 
   "go.uber.org/dig"
-
   "google.golang.org/grpc"
 
+  _ "github.com/go-sql-driver/mysql"
+
+  "github.com/olivere/elastic"
+  "github.com/mediocregopher/radix.v2/pool"
+
+  "github.com/ikeikeikeike/gocore/data/storage"
+  "github.com/ikeikeikeike/gocore/util/dlm"
   "github.com/ikeikeikeike/gocore/util/graceful"
   "github.com/ikeikeikeike/gocore/util/logger"
 )
@@ -258,24 +310,31 @@ func main() {
 type runServerIn struct {
   dig.In
 
-  Grpc                      *grpc.Server
-  DB                        *sql.DB
-  Env                       Environment
+  Env     Environment
+  DB      *sql.DB
+  DLM     *dlm.DLM
+  ES      *elastic.Client
+  RDB     *pool.Pool
+  Storage storage.Storage
 }
 
 // runServer returns
 func runServer(in runServerIn) {
-  endpoint := in.Env.URI
+  // a api server
+  uri, err := url.Parse(in.Env.EnvString("URI"))
+  if err != nil {
+    logger.Panicf("failed to get parse api uri: %s", err)
+  }
 
   errors := make(chan error)
 
   go func(rt *grpc.Server) {
-    lis, err := net.Listen("tcp", endpoint)
+    lis, err := net.Listen("tcp", uri.Host)
     if err != nil {
       logger.Panic("faild to listen: %v", err)
     }
 
-    logger.Info("start grpc server: %s", endpoint)
+    logger.Info("start grpc server: %s", uri.Host)
 
     errors <- rt.Serve(lis)
   }(in.Grpc)
@@ -286,16 +345,20 @@ func runServer(in runServerIn) {
   go func() {
     <-q
 
-    logger.Info("%s waiting remain hooks to closing...", endpoint)
+    // XXX: What is the best order to close connection?
+    logger.Info("%s waiting remain hooks to closing...", uri.Host)
     graceful.Shutdown()
 
-    // Stop db.Close()
-    // Stop es.Close()
-    // Stop es.Close()
-    // Stop rdb.Empty()
-    // Stop dlm.Close()
+    logger.Info("%s waiting database to closing...", uri.Host)
+    in.DB.Close()
 
-    logger.Info("stopping a grpc server...")
+    logger.Info("%s waiting distributed lock to closing...", uri.Host)
+    in.DLM.Close()
+
+    logger.Info("%s waiting redis to closing...", uri.Host)
+    in.RDB.Empty()
+
+    logger.Info("%s graceful stopping a grpc server...", uri.Host)
     in.Grpc.GracefulStop()
   }()
 
