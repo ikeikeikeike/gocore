@@ -17,7 +17,7 @@ import (
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/redis"
 	"github.com/mediocregopher/radix/v3"
-	"github.com/olivere/elastic"
+	"github.com/olivere/elastic/v7"
 
 	"github.com/ikeikeikeike/gocore/util/dlm"
 	"github.com/ikeikeikeike/gocore/util/dsn"
