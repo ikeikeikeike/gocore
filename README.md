@@ -8,6 +8,8 @@ This is common package powered by [uber-go/dig](https://github.com/uber-go/dig) 
 >
 > A   go@1.12.9
 >
+> A   go@1.13.3
+>
 
 This system force required to: You **have to must** have `GO111MODULE` environment variable that activates `go mod` module.
 
@@ -284,7 +286,7 @@ import (
 
   _ "github.com/go-sql-driver/mysql"
 
-  "github.com/olivere/elastic"
+  "github.com/olivere/elastic/v7"
   "github.com/mediocregopher/radix.v2/pool"
 
   "github.com/ikeikeikeike/gocore/data/storage"
