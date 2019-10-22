@@ -1,4 +1,4 @@
-package storage
+package mail
 
 import (
 	"go.uber.org/dig"
@@ -10,12 +10,12 @@ import (
 func Inject(di *dig.Container) {
 	// Injects
 	var deps = []interface{}{
-		newStorage,
+		newMail,
 	}
 
 	for _, dep := range deps {
 		if err := di.Provide(dep); err != nil {
-			logger.Panicf("failed to process storage injection: %s", err)
+			logger.Panicf("failed to process gocore mail injection: %s", err)
 		}
 	}
 }

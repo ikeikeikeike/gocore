@@ -115,7 +115,7 @@ type (
     DLMURI string `envconfig:"GOCORE_API_DLMURI" default:"redis://127.0.0.1:6379/9"`
 
     // URI is set server host and port, which means the same as FQDN
-    ESURI string `envconfig:"GOCORE_API_ESURL" default:"http://127.0.0.1:9200"`
+    ESURL string `envconfig:"GOCORE_API_ESURL" default:"http://127.0.0.1:9200"`
 
     // FURI is storage uri e.g. s3://data_bucket/path/data.flac or file://
     FURI string `envconfig:"GOCORE_API_FURI" default:"file://./storage/data.flac"`

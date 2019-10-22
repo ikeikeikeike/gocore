@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	dlmrdb "github.com/gomodule/redigo/redis"
 	"github.com/mediocregopher/radix.v2/pool"
 	"github.com/mediocregopher/radix.v2/redis"
+	"github.com/mediocregopher/radix/v3"
 	"github.com/olivere/elastic"
 
 	"github.com/ikeikeikeike/gocore/util/dlm"
@@ -57,7 +59,7 @@ func SelectDBConn(dsn string) (*sql.DB, error) {
 func ESConn(env Environment) (*elastic.Client, error) {
 	var op []elastic.ClientOptionFunc
 	op = append(op, elastic.SetHttpClient(&http.Client{Timeout: 5 * time.Second}))
-	op = append(op, elastic.SetURL(env.EnvString("ESURI")))
+	op = append(op, elastic.SetURL(env.EnvString("ESURL")))
 	op = append(op, elastic.SetSniff(false))
 	op = append(op, elastic.SetErrorLog(log.New(os.Stderr, "[ELASTIC] ", log.LstdFlags)))
 
@@ -68,19 +70,20 @@ func ESConn(env Environment) (*elastic.Client, error) {
 
 	es, err := elastic.NewClient(op...)
 	if err != nil {
-		return nil, fmt.Errorf("uninitialized es client <%s>: %s", env.EnvString("ESURI"), err)
+		return nil, fmt.Errorf("uninitialized es client <%s>: %s", env.EnvString("ESURL"), err)
 	}
-	ver, err := es.ElasticsearchVersion(env.EnvString("ESURI"))
+	ver, err := es.ElasticsearchVersion(env.EnvString("ESURL"))
 	if err != nil {
-		return nil, fmt.Errorf("error got es version <%s>: %s", env.EnvString("ESURI"), err)
+		return nil, fmt.Errorf("error got es version <%s>: %s", env.EnvString("ESURL"), err)
 	}
 
 	msg := "[INFO] the elasticsearch connection established <%s>, version %s"
-	logger.Printf(msg, env.EnvString("ESURI"), ver)
+	logger.Printf(msg, env.EnvString("ESURL"), ver)
 	return es, nil
 }
 
 // RDBConn returns established connection
+// This is duplicated. use RDBV3Conn instead.
 func RDBConn(env Environment) (*pool.Pool, error) {
 	df := func(args ...interface{}) pool.DialFunc {
 		return func(network, addr string) (*redis.Client, error) {
@@ -109,6 +112,40 @@ func RDBConn(env Environment) (*pool.Pool, error) {
 
 	msg := "[INFO] the redis connection established <%s>, version UNKNOWN"
 	logger.Printf(msg, env.EnvString("RDBURI"))
+
+	return p, err
+}
+
+// RDBV3Conn returns established connection
+func RDBV3Conn(env Environment) (*radix.Pool, error) {
+	uri := env.EnvString("RDBURI")
+
+	dr, err := dsn.Redis(uri)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse redis dsn <%s>: %s", uri, err)
+	}
+
+	selectDB, err := strconv.Atoi(dr.DB)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse redis db number <%s>: %s", uri, err)
+	}
+
+	// this is a ConnFunc which will set up a connection which is authenticated
+	// and has a 1 minute timeout on all operations
+	connFunc := func(network, addr string) (radix.Conn, error) {
+		return radix.Dial(network, addr,
+			radix.DialTimeout(time.Second*10),
+			radix.DialSelectDB(selectDB),
+		)
+	}
+
+	p, err := radix.NewPool("tcp", dr.HostPort, 10, radix.PoolConnFunc(connFunc))
+	if err != nil {
+		return nil, fmt.Errorf("uninitialized redis client <%s>: %s", uri, err)
+	}
+
+	msg := "[INFO] the redis@v3 connection established <%s>, version UNKNOWN"
+	logger.Printf(msg, uri)
 
 	return p, err
 }
