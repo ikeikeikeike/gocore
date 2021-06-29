@@ -5,27 +5,27 @@ package storage
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 
-	"github.com/pkg/errors"
-
 	"github.com/ikeikeikeike/gocore/util"
 	"github.com/ikeikeikeike/gocore/util/dsn"
 	"github.com/ikeikeikeike/gocore/util/logger"
+	"golang.org/x/xerrors"
 )
 
 // fileStorage provides implementation file object interface.
 type fileStorage struct {
-	Env util.Environment `inject:""`
+	Env util.Environment
 	dsn *dsn.FileDSN
 }
 
 // Write will create file into the file systems.
-func (adp *fileStorage) Write(filename string, data []byte) error {
+func (adp *fileStorage) Write(ctx context.Context, filename string, data []byte) error {
 	filename = adp.dsn.Join(filename)
 	folder := filepath.Dir(filename)
 
@@ -54,12 +54,12 @@ func (adp *fileStorage) Write(filename string, data []byte) error {
 }
 
 // Read returns file data from the file systems.
-func (adp *fileStorage) Read(filename string) ([]byte, error) {
+func (adp *fileStorage) Read(ctx context.Context, filename string) ([]byte, error) {
 	var reader io.ReadCloser
 
 	reader, err := os.Open(adp.dsn.Join(filename))
 	if err != nil {
-		return nil, errors.Wrap(err, "[F] file read failed")
+		return nil, xerrors.Errorf("[F] file read failed: %w", err)
 	}
 
 	defer reader.Close()
@@ -67,23 +67,29 @@ func (adp *fileStorage) Read(filename string) ([]byte, error) {
 	if gzipPtn.MatchString(filename) {
 		reader, err = gzip.NewReader(reader)
 		if err != nil {
-			return nil, errors.Wrap(err, "[F] gzip read failed")
+			return nil, xerrors.Errorf("[F] gzip read failed: %w", err)
 		}
 	}
 
 	return ioutil.ReadAll(reader)
 }
 
+// Delete will delete file from the file systems.
+func (adp *fileStorage) Delete(ctx context.Context, filename string) error {
+	path := adp.dsn.Join(filename)
+	return os.Remove(path)
+}
+
 // Merge will merge file into the file systems.
-func (adp *fileStorage) Merge(filename string, data []byte) error {
-	head, _ := adp.Read(filename)
+func (adp *fileStorage) Merge(ctx context.Context, filename string, data []byte) error {
+	head, _ := adp.Read(ctx, filename)
 	entire := append(head, data...)
 
-	return adp.Write(filename, entire)
+	return adp.Write(ctx, filename, entire)
 }
 
 // Files returns filename list which is traversing with glob from filesystem.
-func (adp *fileStorage) Files(ptn string) ([]string, error) {
+func (adp *fileStorage) Files(ctx context.Context, ptn string) ([]string, error) {
 	matches, err := filepath.Glob(adp.dsn.Join(ptn))
 	if err != nil {
 		logger.Printf("Failed to retrieve list files %s", err)
@@ -98,9 +104,14 @@ func (adp *fileStorage) Files(ptn string) ([]string, error) {
 	return files, nil
 }
 
-// URL returns Public URL
-func (adp *fileStorage) URL(filename string) string {
+// URL returns a Public URL
+func (adp *fileStorage) URL(ctx context.Context, filename string) string {
 	return adp.dsn.URL(filename)
+}
+
+// String returns a URI
+func (adp *fileStorage) String(ctx context.Context, filename string) string {
+	return adp.dsn.String(filename)
 }
 
 // gzip will create sitemap file as a gzip.

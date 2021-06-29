@@ -4,7 +4,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/eiicon-company/go-core/util/logger"
+	"github.com/ikeikeikeike/gocore/util/logger"
 	"github.com/imdario/mergo"
 
 	"gopkg.in/oleiade/reflections.v1"

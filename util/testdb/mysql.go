@@ -4,15 +4,10 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
-	"io/ioutil"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"strings"
 
 	"golang.org/x/xerrors"
-
-	_ "github.com/go-sql-driver/mysql" // for testing
 
 	"github.com/volatiletech/sqlboiler/drivers/sqlboiler-mysql/driver"
 )
@@ -25,6 +20,7 @@ type (
 		pass    string
 		port    int
 		sslmode bool
+		schema  []byte // Table DDL
 
 		db *sql.DB
 	}
@@ -57,18 +53,7 @@ func (m *mysqlTester) Setup() error {
 		return err
 	}
 
-	out, err := exec.Command("go", "env", "GOMOD").Output()
-	if err != nil {
-		return xerrors.Errorf("no Go-Modules found: %w", err)
-	}
-
-	sqlfile := filepath.Join(path.Dir(string(out)), "cmd/migrate/schema.sql")
-	filein, err := ioutil.ReadFile(sqlfile)
-	if err != nil {
-		return xerrors.Errorf("no Go-Modules found: %w", err)
-	}
-
-	if err := m.cmd(string(filein), "-D", m.name); err != nil {
+	if err := m.cmd(string(m.schema), "-D", m.name); err != nil {
 		return xerrors.Errorf("failed table restore: %w", err)
 	}
 

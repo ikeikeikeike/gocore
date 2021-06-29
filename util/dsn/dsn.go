@@ -1,7 +1,10 @@
 package dsn
 
-import "fmt"
+import "golang.org/x/xerrors"
 
 func ef(format string, a ...interface{}) error {
-	return fmt.Errorf(format, a...)
+	return xerrors.Errorf(format, a...)
 }
+
+// filePublicURL Http URL
+var filePublicURL = "http://localhost:8000"

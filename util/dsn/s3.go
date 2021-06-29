@@ -10,14 +10,15 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
-	"github.com/aws/aws-sdk-go/aws/ec2metadata"
+	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-	"github.com/pkg/errors"
+	"golang.org/x/xerrors"
 )
 
 type (
-	// S3DSN s3://data_bucket/path/data.flac
+	// S3DSN s3://data-bucket/path/
+	// 			 s3://data-bucket/path/?url=https://exampl.ecom:80
 	S3DSN struct {
 		Sess   *session.Session
 		Bucket string
@@ -40,15 +41,12 @@ func (dsn *S3DSN) String(filename string) string {
 
 // URL returns https URL
 //
-// TODO: No auth or authed or private or public URL
-//
-// 	https://$bucket.s3.ap-southeast-2.amazonaws.com/private/$federated-identityLogo.jpg?AWSAccessKeyId=$KEY&Signature=$KEY&x-amz-security-token=$TOKEN
-// 	return fmt.Sprintf("https://%s%s", dsn.Bucket, aws.StringValue(dsn.Sess.Config.Region), dsn.Join(filename))
+// TODO: Get no auth or authed or private or public URL
 //
 func (dsn *S3DSN) URL(filename string) string {
 	if dsn.PublicURL != nil {
-		u, _ := url.Parse(filePublicURL)
-		u.Path = path.Join(u.Path, filename)
+		u, _ := url.Parse(dsn.PublicURL.String())
+		u.Path = path.Join(filepath.Dir(u.Path), filename)
 		return u.String()
 	}
 
@@ -59,12 +57,16 @@ func (dsn *S3DSN) URL(filename string) string {
 		Key:    aws.String(dsn.Key),
 	})
 
-	uri, err := req.Presign(24 * 5 * time.Hour) // TODO: No auth: Public or Private URL
+	uri, err := req.Presign(24 * 5 * time.Hour) // TODO: Auth URL: Public or Private URL
 	if err != nil {
 		return ""
 	}
 
-	return uri
+	u, _ := url.Parse(uri) // TODO: Auth URL: Public or Private URL
+	u.Path = path.Join(filepath.Dir(u.Path), filename)
+	u.RawQuery = ""
+	u.Fragment = ""
+	return u.String()
 }
 
 // S3 ...
@@ -74,7 +76,7 @@ func S3(uri string) (*S3DSN, error) {
 	}
 	u, err := url.Parse(uri)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid s3 dsn")
+		return nil, xerrors.Errorf("invalid s3 dsn: %w", err)
 	}
 	if u.Scheme != "s3" {
 		return nil, ef("invalid s3 scheme: %s", u.Scheme)
@@ -88,13 +90,13 @@ func S3(uri string) (*S3DSN, error) {
 
 	sess, err := awsSession()
 	if err != nil {
-		msg := "invalid s3 environment variables"
-		return nil, errors.Wrap(err, msg)
+		msg := "invalid s3 environment variables: %w"
+		return nil, xerrors.Errorf(msg, err)
 	}
 
 	pubURL, err := url.Parse(u.Query().Get("url"))
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid url='' queryString")
+		return nil, xerrors.Errorf("invalid url='' queryString: %w", err)
 	}
 
 	dsn := &S3DSN{
@@ -111,36 +113,50 @@ func S3(uri string) (*S3DSN, error) {
 	return dsn, nil
 }
 
+// 1. env var first
+// 2. AssumeRole
+// 3. ec2
+// 4. ~/.aws folder
 func awsSession() (*session.Session, error) {
-	meta, err := session.NewSession()
-	if err != nil {
-		msg := "aws session failed creation"
-		return nil, errors.Wrap(err, msg)
-	}
-
-	creds := credentials.NewChainCredentials(
-		[]credentials.Provider{
-			&credentials.EnvProvider{},
-			&ec2rolecreds.EC2RoleProvider{
-				Client: ec2metadata.New(meta),
-			},
-		})
-
-	if _, err := creds.Get(); err != nil {
-		msg := "invalid aws environment variables"
-		return nil, errors.Wrap(err, msg)
+	creds := credentials.NewEnvCredentials()
+	if _, err := creds.Get(); err == nil {
+		return awsSessionChecker(session.NewSessionWithOptions(session.Options{
+			Config:            aws.Config{Credentials: creds},
+			SharedConfigState: session.SharedConfigDisable,
+		}))
 	}
 
 	sess, err := session.NewSessionWithOptions(session.Options{
-		Config:            aws.Config{Credentials: creds},
-		SharedConfigState: session.SharedConfigDisable,
+		AssumeRoleTokenProvider: stscreds.StdinTokenProvider,
+		SharedConfigState:       session.SharedConfigEnable,
 	})
+	if _, err := awsSessionChecker(sess, err); err == nil {
+		return sess, nil
+	}
+
+	creds = ec2rolecreds.NewCredentials(sess)
+	if _, err := creds.Get(); err == nil {
+		return awsSessionChecker(session.NewSessionWithOptions(session.Options{
+			Config:            aws.Config{Credentials: creds},
+			SharedConfigState: session.SharedConfigDisable,
+		}))
+	}
+
+	return awsSessionChecker(session.NewSessionWithOptions(session.Options{
+		SharedConfigState: session.SharedConfigEnable,
+	}))
+}
+
+func awsSessionChecker(sess *session.Session, err error) (*session.Session, error) {
 	if err != nil {
-		msg := "invalid aws environment variables"
-		return nil, errors.Wrap(err, msg)
+		msg := "invalid aws environment variables: %w"
+		return nil, xerrors.Errorf(msg, err)
 	}
 	if aws.StringValue(sess.Config.Region) == "" {
 		return nil, ef("invalid aws region is blank")
+	}
+	if sess.Config.Credentials == nil {
+		return nil, ef("invalid aws credentials is blank")
 	}
 
 	return sess, nil

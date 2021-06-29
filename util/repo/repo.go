@@ -1,10 +1,8 @@
 package repo
 
 import (
-	"errors"
-
-	"github.com/ikeikeikeike/gocore/util/priv"
 	"github.com/volatiletech/sqlboiler/queries/qm"
+	"golang.org/x/xerrors"
 )
 
 const (
@@ -14,7 +12,7 @@ const (
 
 var (
 	// ErrExists a record already exists
-	ErrExists = errors.New("already exists")
+	ErrExists = xerrors.New("already exists")
 )
 
 var (
@@ -24,42 +22,59 @@ var (
 	DescOrder = qm.OrderBy("id DESC")
 )
 
-// Fuzzy this is so fuzzzy
-func Fuzzy(v interface{}, arr []interface{}) bool {
-	for _, i := range arr {
-		if priv.MustString(i) == priv.MustString(v) {
-			return true
-		}
-	}
-
-	return false
-}
-
-// PreloadBy assembles QueryMod with where statements
-func PreloadBy(where []qm.QueryMod, loads ...string) ([]qm.QueryMod, error) {
-	if len(where) <= 0 {
-		return nil, errors.New("no queries")
-	}
-
-	return append(Preloads(loads...), where...), nil
-}
-
-// Preload assembles QueryMod with primary id
-func Preload(id int, loads ...string) []qm.QueryMod {
+// PreloadByID assembles QueryMod with primary ID
+//
+// XXX: There is this code for compatibility
+//
+func PreloadByID(id int, loads ...qm.QueryMod) []qm.QueryMod {
 	mods := []qm.QueryMod{qm.Where("id = ?", id)}
-	for _, load := range loads {
-		mods = append(mods, qm.Load(load))
-	}
+	mods = append(mods, loads...)
 
 	return mods
 }
 
-// Preloads assembles loads
-func Preloads(loads ...string) []qm.QueryMod {
-	mods := []qm.QueryMod{qm.OrderBy("id ASC")}
-	for _, load := range loads {
-		mods = append(mods, qm.Load(load))
+// PreloadBy assembles QueryMod with where statements
+//
+// XXX: There is this code for compatibility
+//
+func PreloadBy(where []qm.QueryMod, loads ...qm.QueryMod) ([]qm.QueryMod, error) {
+	if len(where) <= 0 {
+		return nil, xerrors.New("no queries")
 	}
+
+	return append(where, Preloads(loads...)...), nil
+}
+
+// Preloads assembles loads
+//
+// XXX: There is this code for compatibility
+//
+func Preloads(loads ...qm.QueryMod) []qm.QueryMod {
+	mods := []qm.QueryMod{}
+	mods = append(mods, loads...)
+
+	return mods
+}
+
+// DescPreloadBy assembles QueryMod with where statements
+//
+// XXX: There is this code for compatibility
+//
+func DescPreloadBy(where []qm.QueryMod, loads ...qm.QueryMod) ([]qm.QueryMod, error) {
+	if len(where) <= 0 {
+		return nil, xerrors.New("no queries")
+	}
+
+	return append(where, DescPreloads(loads...)...), nil
+}
+
+// DescPreloads assembles loads
+//
+// XXX: There is this code for compatibility
+//
+func DescPreloads(loads ...qm.QueryMod) []qm.QueryMod {
+	mods := []qm.QueryMod{DescOrder}
+	mods = append(mods, loads...)
 
 	return mods
 }

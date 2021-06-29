@@ -3,13 +3,6 @@
 This is common package powered by [uber-go/dig](https://github.com/uber-go/dig) dependency injection toolkit.
 
 
->
-> N/A go@1.11
->
-> A   go@1.12.9
->
-> A   go@1.13.3
->
 
 This system force required to: You **have to must** have `GO111MODULE` environment variable that activates `go mod` module.
 
@@ -365,7 +358,7 @@ func runServer(in runServerIn) {
   }()
 
   if err := <-errors; err != nil {
-    logger.Panicf("auba-api returned non-nil error on launch server: %v", err)
+    logger.Panicf("api returned non-nil error on launch server: %v", err)
   }
 }
 ```

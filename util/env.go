@@ -7,6 +7,12 @@ type (
 	// must be implement in children
 	//
 	Environment interface {
+		// IsProd returns determined product environment mode
+		IsProd() bool
+		// IsDev returns determined develop environment mode
+		IsDev() bool
+		// IsLocal returns determined local environment mode
+		IsLocal() bool
 		// IsDebug returns
 		IsDebug() bool
 		// IsSentry returns

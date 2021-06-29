@@ -25,7 +25,7 @@ type (
 )
 
 // NewDBTester returns a DBTester
-func NewDBTester(dsn string) (DBTester, error) {
+func NewDBTester(dsn string, schema []byte) (DBTester, error) {
 	if strings.HasPrefix(dsn, "mysql") {
 		dialect = "mysql"
 
@@ -51,6 +51,7 @@ func NewDBTester(dsn string) (DBTester, error) {
 			pass:    my.Passwd,
 			port:    port,
 			sslmode: my.TLSConfig != "",
+			schema:  schema,
 		}, nil
 	}
 
