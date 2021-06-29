@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-sql-driver/mysql"
-	"github.com/volatiletech/sqlboiler/randomize"
+	"github.com/volatiletech/randomize"
 	"golang.org/x/xerrors"
 )
 

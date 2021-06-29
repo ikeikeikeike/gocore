@@ -6,11 +6,9 @@ require (
 	cloud.google.com/go v0.81.0 // indirect
 	cloud.google.com/go/bigquery v1.16.0
 	cloud.google.com/go/storage v1.14.0
-	github.com/DATA-DOG/go-sqlmock v1.4.1 // indirect
 	github.com/aws/aws-sdk-go v1.38.12
 	github.com/codeskyblue/go-sh v0.0.0-20200712050446-30169cf553fe
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
-	github.com/friendsofgo/errors v0.9.2 // indirect
 	github.com/getsentry/sentry-go v0.11.0
 	github.com/go-redsync/redsync v1.4.2
 	github.com/go-sql-driver/mysql v1.6.0
@@ -28,11 +26,9 @@ require (
 	github.com/oleiade/reflections v1.0.0 // indirect
 	github.com/olivere/elastic/v7 v7.0.23
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/cast v1.3.1 // indirect
 	github.com/stretchr/testify v1.7.0 // indirect
-	github.com/volatiletech/inflect v0.0.1 // indirect
-	github.com/volatiletech/null v8.0.0+incompatible // indirect
-	github.com/volatiletech/sqlboiler v3.7.1+incompatible
+	github.com/volatiletech/randomize v0.0.1
+	github.com/volatiletech/sqlboiler/v4 v4.6.0
 	go.uber.org/dig v1.10.0
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/net v0.0.0-20210331212208-0fccb6fa2b5c // indirect
